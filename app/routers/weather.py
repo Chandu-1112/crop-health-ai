@@ -32,7 +32,7 @@ Farm.user_id == current_user.id
 .first()
 )
 
-```
+
 if field is None:
     raise HTTPException(
         status_code=404,
