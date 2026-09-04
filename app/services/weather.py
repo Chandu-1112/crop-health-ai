@@ -1,110 +1,139 @@
-import requests
+import json
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
+
+
+OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
 
 def get_weather(latitude: float, longitude: float):
-    url = "https://api.open-meteo.com/v1/forecast"
+    """
+    Fetch current weather for the farm/field GPS coordinates.
 
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "current": (
-            "temperature_2m,"
-            "relative_humidity_2m,"
-            "rain,"
-            "wind_speed_10m"
-        ),
-        "timezone": "auto"
-    }
+    Uses Open-Meteo current weather API.
+    No API key required.
+    """
 
-    response = requests.get(
-        url,
-        params=params,
-        timeout=10
-    )
+    try:
+        # Validate coordinates
+        latitude = float(latitude)
+        longitude = float(longitude)
 
-    if response.status_code != 200:
+        if not (-90 <= latitude <= 90):
+            raise ValueError("Invalid latitude")
+
+        if not (-180 <= longitude <= 180):
+            raise ValueError("Invalid longitude")
+
+        params = {
+            "latitude": latitude,
+            "longitude": longitude,
+            "current": (
+                "temperature_2m,"
+                "relative_humidity_2m,"
+                "precipitation,"
+                "wind_speed_10m,"
+                "weather_code"
+            ),
+            "timezone": "auto",
+        }
+
+        url = f"{OPEN_METEO_URL}?{urlencode(params)}"
+
+        request = Request(
+            url,
+            headers={
+                "User-Agent": "Crop-Health-AI/1.0",
+                "Accept": "application/json",
+            },
+            method="GET",
+        )
+
+        with urlopen(request, timeout=15) as response:
+            status_code = response.status
+            response_data = response.read().decode("utf-8")
+
+        if status_code != 200:
+            raise Exception(
+                f"Open-Meteo returned HTTP {status_code}"
+            )
+
+        data = json.loads(response_data)
+
+        current = data.get("current")
+
+        if not current:
+            raise Exception(
+                "Open-Meteo response did not contain current weather data"
+            )
+
+        return {
+            "latitude": latitude,
+            "longitude": longitude,
+            "temperature": current.get("temperature_2m"),
+            "humidity": current.get("relative_humidity_2m"),
+            "precipitation": current.get("precipitation"),
+            "wind_speed": current.get("wind_speed_10m"),
+            "weather_code": current.get("weather_code"),
+            "time": current.get("time"),
+            "timezone": data.get("timezone"),
+            "temperature_unit": (
+                data.get("current_units", {})
+                .get("temperature_2m", "°C")
+            ),
+            "humidity_unit": (
+                data.get("current_units", {})
+                .get("relative_humidity_2m", "%")
+            ),
+            "precipitation_unit": (
+                data.get("current_units", {})
+                .get("precipitation", "mm")
+            ),
+            "wind_speed_unit": (
+                data.get("current_units", {})
+                .get("wind_speed_10m", "km/h")
+            ),
+        }
+
+    except HTTPError as error:
+        print(
+            "Open-Meteo HTTP error:",
+            error.code,
+            error.reason
+        )
+
         raise Exception(
-            "Failed to fetch current weather"
+            f"Weather service returned HTTP {error.code}"
         )
 
-    data = response.json()
-
-    current = data.get("current", {})
-
-    return {
-        "temperature": current.get("temperature_2m"),
-        "humidity": current.get(
-            "relative_humidity_2m"
-        ),
-        "rainfall": current.get("rain"),
-        "wind_speed": current.get(
-            "wind_speed_10m"
+    except URLError as error:
+        print(
+            "Open-Meteo connection error:",
+            error.reason
         )
-    }
 
-
-def get_weather_forecast(
-    latitude: float,
-    longitude: float,
-    days: int = 14
-):
-    url = "https://api.open-meteo.com/v1/forecast"
-
-    params = {
-        "latitude": latitude,
-        "longitude": longitude,
-        "daily": (
-            "temperature_2m_max,"
-            "temperature_2m_min,"
-            "relative_humidity_2m_mean,"
-            "precipitation_sum,"
-            "wind_speed_10m_max"
-        ),
-        "forecast_days": days,
-        "timezone": "auto"
-    }
-
-    response = requests.get(
-        url,
-        params=params,
-        timeout=10
-    )
-
-    if response.status_code != 200:
         raise Exception(
-            "Failed to fetch weather forecast"
+            "Unable to connect to weather service"
         )
 
-    data = response.json()
-    daily = data.get("daily", {})
+    except json.JSONDecodeError as error:
+        print(
+            "Open-Meteo JSON error:",
+            error
+        )
 
-    dates = daily.get("time", [])
-    max_temperature = daily.get(
-        "temperature_2m_max", []
-    )
-    min_temperature = daily.get(
-        "temperature_2m_min", []
-    )
-    humidity = daily.get(
-        "relative_humidity_2m_mean", []
-    )
-    rainfall = daily.get(
-        "precipitation_sum", []
-    )
-    wind_speed = daily.get(
-        "wind_speed_10m_max", []
-    )
+        raise Exception(
+            "Weather service returned invalid data"
+        )
 
-    forecast = []
+    except Exception as error:
+        print(
+            "Weather service error:",
+            error
+        )
 
-    for i in range(len(dates)):
-        forecast.append({
-            "date": dates[i],
-            "temperature_max": max_temperature[i],
-            "temperature_min": min_temperature[i],
-            "humidity": humidity[i],
-            "rainfall": rainfall[i],
-            "wind_speed": wind_speed[i]
-        })
+        raise Exception(
+            f"Failed to fetch current weather: {error}"
+        )
 
-    return forecast
