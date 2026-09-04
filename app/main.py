@@ -2,7 +2,12 @@ from fastapi import FastAPI, Depends
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.database.database import engine, get_db, Base
+from app.database.database import (
+    engine,
+    get_db,
+    Base,
+    ensure_database_schema
+)
 
 
 # ============================================================
@@ -47,6 +52,13 @@ from app.routers.chat import router as chat_router
 # ============================================================
 
 Base.metadata.create_all(bind=engine)
+
+
+# ============================================================
+# Ensure existing database has required columns
+# ============================================================
+
+ensure_database_schema()
 
 
 # ============================================================
@@ -107,3 +119,4 @@ def test_database(
         "database": "connected",
         "result": result.scalar()
     }
+

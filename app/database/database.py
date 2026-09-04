@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, declarative_base
 from dotenv import load_dotenv
 import os
@@ -31,3 +31,20 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def ensure_database_schema():
+    """
+    Ensures required database columns exist.
+    This is a simple schema fix for the deployed hackathon backend.
+    """
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                ALTER TABLE diagnoses
+                ADD COLUMN IF NOT EXISTS image_type VARCHAR(100);
+                """
+            )
+        )
+
