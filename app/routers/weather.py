@@ -49,85 +49,30 @@ if (
         detail="Field location is not available"
     )
 
-# ---------------------------------------------------------
-# Try to get fresh weather from Open-Meteo
-# ---------------------------------------------------------
-try:
-    weather = get_weather(
-        field.farm.latitude,
-        field.farm.longitude
-    )
+# Get weather from Open-Meteo
+weather = get_weather(
+    field.farm.latitude,
+    field.farm.longitude
+)
 
-    # Save fresh weather in database
-    weather_data = WeatherData(
-        field_id=field.id,
-        temperature=weather["temperature"],
-        humidity=weather["humidity"],
-        rainfall=weather["rainfall"],
-        wind_speed=weather["wind_speed"],
-        forecast_date=date.today()
-    )
+# Save weather in database
+weather_data = WeatherData(
+    field_id=field.id,
+    temperature=weather["temperature"],
+    humidity=weather["humidity"],
+    rainfall=weather["rainfall"],
+    wind_speed=weather["wind_speed"],
+    forecast_date=date.today()
+)
 
-    db.add(weather_data)
-    db.commit()
-    db.refresh(weather_data)
+db.add(weather_data)
+db.commit()
+db.refresh(weather_data)
 
-    return {
-        "field_id": field.id,
-        "field_name": field.name,
-        "weather": weather,
-        "saved": True,
-        "source": "open-meteo"
-    }
-
-# ---------------------------------------------------------
-# Open-Meteo unavailable / rate limited
-# ---------------------------------------------------------
-except Exception as error:
-    print(
-        f"Weather API failed for field {field.id}: {error}"
-    )
-
-    # Get the latest weather already stored in PostgreSQL
-    latest_weather = (
-        db.query(WeatherData)
-        .filter(
-            WeatherData.field_id == field.id
-        )
-        .order_by(
-            WeatherData.created_at.desc()
-        )
-        .first()
-    )
-
-    # If previous weather exists, use it
-    if latest_weather is not None:
-        return {
-            "field_id": field.id,
-            "field_name": field.name,
-            "weather": {
-                "temperature": latest_weather.temperature,
-                "humidity": latest_weather.humidity,
-                "rainfall": latest_weather.rainfall,
-                "wind_speed": latest_weather.wind_speed,
-                "weather_code": None,
-                "time": None,
-                "timezone": None
-            },
-            "saved": False,
-            "source": "database-cache",
-            "warning": (
-                "Live weather is temporarily unavailable. "
-                "Showing the latest saved weather data."
-            )
-        }
-
-    # No live weather and no previous weather
-    raise HTTPException(
-        status_code=503,
-        detail=(
-            "Live weather is temporarily unavailable "
-            "and no previous weather data is available."
-        )
-    )
+return {
+    "field_id": field.id,
+    "field_name": field.name,
+    "weather": weather,
+    "saved": True
+}
 
