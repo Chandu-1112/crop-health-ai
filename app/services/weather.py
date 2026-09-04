@@ -1,41 +1,106 @@
 from typing import Dict, Any
 from urllib.parse import urlencode
-from urllib.request import urlopen
-from urllib.error import URLError, HTTPError
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError, URLError
 import json
+import time
 
 
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
+# Cache durations
+CURRENT_WEATHER_CACHE_SECONDS = 600       # 10 minutes
+FORECAST_CACHE_SECONDS = 1800             # 30 minutes
 
-def _fetch_open_meteo(params: Dict[str, Any]) -> Dict[str, Any]:
+# In-memory cache
+_weather_cache: Dict[str, Dict[str, Any]] = {}
+_forecast_cache: Dict[str, Dict[str, Any]] = {}
+
+
+def _cache_key(latitude: float, longitude: float) -> str:
+    """
+    Create a stable cache key for a location.
+    """
+    return f"{round(float(latitude), 4)}:{round(float(longitude), 4)}"
+
+
+def _fetch_open_meteo(
+    params: Dict[str, Any],
+    retries: int = 2
+) -> Dict[str, Any]:
     """
     Fetch weather data from Open-Meteo.
-    No API key is required.
+
+    Uses a User-Agent and retries temporary errors.
     """
 
     query = urlencode(params)
     url = f"{OPEN_METEO_URL}?{query}"
 
-    try:
-        with urlopen(url, timeout=15) as response:
-            data = response.read().decode("utf-8")
-            return json.loads(data)
+    request = Request(
+        url,
+        headers={
+            "User-Agent": (
+                "CropHealthAI/1.0 "
+                "(hackathon agricultural weather application)"
+            ),
+            "Accept": "application/json"
+        }
+    )
 
-    except HTTPError as e:
-        raise Exception(
-            f"Open-Meteo HTTP error: {e.code}"
-        )
+    last_error = None
 
-    except URLError as e:
-        raise Exception(
-            f"Open-Meteo connection error: {e.reason}"
-        )
+    for attempt in range(retries + 1):
 
-    except Exception as e:
-        raise Exception(
-            f"Failed to fetch weather data: {str(e)}"
-        )
+        try:
+            with urlopen(request, timeout=15) as response:
+                data = response.read().decode("utf-8")
+                return json.loads(data)
+
+        except HTTPError as e:
+            last_error = e
+
+            # 429 = rate limited.
+            # Wait before retrying.
+            if e.code == 429:
+                if attempt < retries:
+                    time.sleep(2 * (attempt + 1))
+                    continue
+
+                raise Exception(
+                    "Open-Meteo rate limit reached. "
+                    "Please try again shortly."
+                )
+
+            raise Exception(
+                f"Open-Meteo HTTP error: {e.code}"
+            )
+
+        except URLError as e:
+            last_error = e
+
+            if attempt < retries:
+                time.sleep(1 * (attempt + 1))
+                continue
+
+            raise Exception(
+                f"Open-Meteo connection error: {e.reason}"
+            )
+
+        except Exception as e:
+            last_error = e
+
+            if attempt < retries:
+                time.sleep(1)
+                continue
+
+            raise Exception(
+                f"Failed to fetch weather data: {str(e)}"
+            )
+
+    raise Exception(
+        f"Failed to fetch weather data: {str(last_error)}"
+    )
 
 
 def get_weather(
@@ -44,7 +109,21 @@ def get_weather(
 ):
     """
     Get current weather for a field location.
+
+    Results are cached for 10 minutes so repeated
+    frontend requests do not repeatedly hit Open-Meteo.
     """
+
+    key = _cache_key(latitude, longitude)
+
+    # Check cache
+    cached = _weather_cache.get(key)
+
+    if cached:
+        age = time.time() - cached["timestamp"]
+
+        if age < CURRENT_WEATHER_CACHE_SECONDS:
+            return cached["data"]
 
     params = {
         "latitude": latitude,
@@ -68,8 +147,10 @@ def get_weather(
             "Current weather data not available"
         )
 
-    return {
-        "temperature": current.get("temperature_2m"),
+    weather = {
+        "temperature": current.get(
+            "temperature_2m"
+        ),
         "humidity": current.get(
             "relative_humidity_2m"
         ),
@@ -86,6 +167,14 @@ def get_weather(
         "timezone": data.get("timezone")
     }
 
+    # Save in cache
+    _weather_cache[key] = {
+        "timestamp": time.time(),
+        "data": weather
+    }
+
+    return weather
+
 
 def get_weather_forecast(
     latitude: float,
@@ -95,11 +184,21 @@ def get_weather_forecast(
     """
     Get daily weather forecast.
 
-    Returns a list compatible with
-    calculate_forecast_risk().
+    Results are cached for 30 minutes.
     """
 
     days = max(1, min(days, 16))
+
+    key = f"{_cache_key(latitude, longitude)}:{days}"
+
+    # Check cache
+    cached = _forecast_cache.get(key)
+
+    if cached:
+        age = time.time() - cached["timestamp"]
+
+        if age < FORECAST_CACHE_SECONDS:
+            return cached["data"]
 
     params = {
         "latitude": latitude,
@@ -125,18 +224,23 @@ def get_weather_forecast(
         )
 
     dates = daily.get("time", [])
+
     temperatures_max = daily.get(
         "temperature_2m_max", []
     )
+
     temperatures_min = daily.get(
         "temperature_2m_min", []
     )
+
     humidity = daily.get(
         "relative_humidity_2m_mean", []
     )
+
     rainfall = daily.get(
         "precipitation_sum", []
     )
+
     wind_speed = daily.get(
         "wind_speed_10m_max", []
     )
@@ -178,6 +282,12 @@ def get_weather_forecast(
                 else None
             )
         })
+
+    # Save in cache
+    _forecast_cache[key] = {
+        "timestamp": time.time(),
+        "data": forecast
+    }
 
     return forecast
 
