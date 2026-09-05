@@ -64,7 +64,7 @@ ensure_database_schema()
 # ============================================================
 
 app = FastAPI(
-    title="Crop Health AI API"
+    title="Crop Health API"
 )
 
 
@@ -96,7 +96,7 @@ app.include_router(chat_router)
 @app.get("/")
 def root():
     return {
-        "message": "Crop Health AI Backend Running"
+        "message": "Crop Health Backend Running"
     }
 
 
