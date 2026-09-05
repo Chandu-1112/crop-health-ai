@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
@@ -13,6 +13,15 @@ router = APIRouter(
 )
 
 
+def require_admin(current_user: User = Depends(get_current_user)):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return current_user
+
+
 @router.get("/me")
 def get_my_profile(
     current_user: User = Depends(get_current_user)
@@ -25,6 +34,49 @@ def get_my_profile(
         "role": current_user.role,
         "created_at": current_user.created_at
     }
+
+
+@router.get("/admin")
+def get_all_users(
+    db: Session = Depends(get_db),
+    _admin: User = Depends(require_admin)
+):
+    users = db.query(User).order_by(User.id.asc()).all()
+    return [
+        {
+            "id": user.id,
+            "name": user.name,
+            "mobile": user.mobile,
+            "language": user.language,
+            "role": user.role,
+            "created_at": user.created_at,
+        }
+        for user in users
+    ]
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_admin)
+):
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Admin account cannot be deleted"
+        )
+
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    db.delete(user)
+    db.commit()
+    return None
 
 
 @router.put("/me")

@@ -58,6 +58,13 @@ Base.metadata.create_all(bind=engine)
 
 ensure_database_schema()
 
+# ============================================================
+# Ensure default admin user exists
+# ============================================================
+
+from app.database.database import ensure_default_admin_user
+ensure_default_admin_user()
+
 
 # ============================================================
 # Create FastAPI application

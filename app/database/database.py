@@ -49,3 +49,40 @@ def ensure_database_schema():
                 """
             )
         )
+
+
+def ensure_default_admin_user():
+    """Create the default admin account if it does not already exist."""
+    from app.core.security import hash_password
+    from app.models.user import User
+
+    db = SessionLocal()
+    try:
+        existing_user = (
+            db.query(User)
+            .filter(User.mobile == "8330965648")
+            .first()
+        )
+
+        if existing_user:
+            if existing_user.role != "admin":
+                existing_user.role = "admin"
+                existing_user.name = "Admin"
+                existing_user.password_hash = hash_password("admin123")
+                db.commit()
+            return existing_user
+
+        admin_user = User(
+            name="Admin",
+            mobile="8330965648",
+            password_hash=hash_password("admin123"),
+            language="en",
+            role="admin",
+        )
+
+        db.add(admin_user)
+        db.commit()
+        db.refresh(admin_user)
+        return admin_user
+    finally:
+        db.close()
