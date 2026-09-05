@@ -12,4 +12,5 @@ class User(Base):
     mobile = Column(String(15), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
     language = Column(String(10), default="en")
+    role = Column(String(30), default="farmer", nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

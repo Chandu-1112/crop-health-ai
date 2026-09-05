@@ -125,7 +125,8 @@ def get_field_forecast(
     field_id=field.id,
     crop=field.crop,
     disease=diagnosis.disease,
-    forecast=forecast
+    forecast=forecast,
+    language=current_user.language
 )
 
     return {

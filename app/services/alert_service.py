@@ -9,40 +9,51 @@ def create_risk_alert(
     crop: str,
     disease: str,
     risk_score: float,
-    risk_level: str
+    risk_level: str,
+    language: str = "en",
 ):
     if risk_level == "low":
         return None
 
+    labels = {
+        "en": ("High Crop Health Risk", "Crop Health Warning", "High", "Medium", "Inspect the field immediately and consider expert verification.", "Monitor the field closely."),
+        "te": ("పంట ఆరోగ్యానికి అధిక ప్రమాదం", "పంట ఆరోగ్య హెచ్చరిక", "అధిక", "మధ్యస్థ", "వెంటనే పొలాన్ని పరిశీలించి నిపుణుల నిర్ధారణ పొందండి.", "పొలాన్ని జాగ్రత్తగా గమనించండి."),
+        "hi": ("फसल स्वास्थ्य का उच्च जोखिम", "फसल स्वास्थ्य चेतावनी", "उच्च", "मध्यम", "तुरंत खेत की जांच करें और विशेषज्ञ से पुष्टि लें.", "खेत की करीब से निगरानी करें।"),
+    }.get(language, None) or (
+        "High Crop Health Risk", "Crop Health Warning", "High", "Medium",
+        "Inspect the field immediately and consider expert verification.",
+        "Monitor the field closely.",
+    )
+
     if risk_level == "high":
         severity = "high"
-        title = "High Crop Health Risk"
-
-        message = (
-            f"High risk detected for {crop}. "
-            f"Possible issue: {disease}. "
-            f"Risk score: {risk_score}. "
-            "Inspect the field immediately and "
-            "consider expert verification."
-        )
+        title = labels[0]
 
     else:
         severity = "medium"
-        title = "Crop Health Warning"
+        title = labels[1]
 
-        message = (
-            f"Medium risk detected for {crop}. "
-            f"Possible issue: {disease}. "
-            f"Risk score: {risk_score}. "
-            "Monitor the field closely."
+    # The same calculated risk can be requested repeatedly (for example when
+    # the recommendations page is refreshed).  Read state is not part of the
+    # event identity: marking an alert read must not make it eligible for an
+    # identical alert on the next request.
+    message = (
+        f"{labels[2] if severity == 'high' else labels[3]} risk detected for {crop}. "
+        f"Possible issue: {disease}. "
+        f"Risk score: {risk_score}. "
+        + (
+            labels[4]
+            if severity == "high"
+            else labels[5]
         )
+    )
 
     existing_alert = (
         db.query(Alert)
         .filter(
             Alert.field_id == field_id,
-            Alert.severity == severity,
-            Alert.is_read == False
+            Alert.type == "crop_health_risk",
+            Alert.message == message
         )
         .first()
     )
@@ -71,7 +82,8 @@ def create_forecast_alert(
     field_id: int,
     crop: str,
     disease: str,
-    forecast: dict
+    forecast: dict,
+    language: str = "en",
 ):
     """
     Create an alert when future forecast risk
@@ -93,12 +105,32 @@ def create_forecast_alert(
     if highest_risk < 70:
         return None
 
+    labels = {
+        "en": ("Upcoming Crop Health Risk", "Forecast indicates high risk for", "related to", "Highest predicted risk is", "around", "Monitor the field closely and consider preventive action."),
+        "te": ("రాబోయే పంట ఆరోగ్య ప్రమాదం", "అంచనా ప్రకారం అధిక ప్రమాదం", "దీనికి సంబంధించినది", "అంచనా వేసిన గరిష్ఠ ప్రమాదం", "సమీపంలో", "పొలాన్ని జాగ్రత్తగా గమనించి నివారణ చర్యలు తీసుకోండి."),
+        "hi": ("आने वाला फसल स्वास्थ्य जोखिम", "पूर्वानुमान में उच्च जोखिम", "से संबंधित", "अनुमानित सबसे अधिक जोखिम", "के आसपास", "खेत की करीब से निगरानी करें और रोकथाम की कार्रवाई करें।"),
+    }.get(language, None) or (
+        "Upcoming Crop Health Risk", "Forecast indicates high risk for", "related to",
+        "Highest predicted risk is", "around", "Monitor the field closely and consider preventive action.",
+    )
+    message = (
+        f"{labels[1]} {crop} "
+        f"{labels[2]} {disease}. "
+        f"{labels[3]} "
+        f"{round(highest_risk, 2)} "
+        f"{labels[4]} {highest_day}. "
+        f"{labels[5]}"
+    )
+
+    # A forecast alert represents this exact forecast result, not its unread
+    # state.  A changed score, disease, or forecast day therefore remains a
+    # new alert while refreshing an unchanged forecast is idempotent.
     existing_alert = (
         db.query(Alert)
         .filter(
             Alert.field_id == field_id,
             Alert.type == "forecast_risk",
-            Alert.is_read == False
+            Alert.message == message
         )
         .first()
     )
@@ -110,16 +142,8 @@ def create_forecast_alert(
         field_id=field_id,
         type="forecast_risk",
         severity="high",
-        title="Upcoming Crop Health Risk",
-        message=(
-            f"Forecast indicates high risk for {crop} "
-            f"related to {disease}. "
-            f"Highest predicted risk is "
-            f"{round(highest_risk, 2)} "
-            f"around {highest_day}. "
-            "Monitor the field closely and "
-            "consider preventive action."
-        ),
+        title=labels[0],
+        message=message,
         is_read=False
     )
 

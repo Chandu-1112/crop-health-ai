@@ -44,7 +44,8 @@ def ensure_database_schema():
                 """
                 ALTER TABLE diagnoses
                 ADD COLUMN IF NOT EXISTS image_type VARCHAR(100);
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS role VARCHAR(30) NOT NULL DEFAULT 'farmer';
                 """
             )
         )
-

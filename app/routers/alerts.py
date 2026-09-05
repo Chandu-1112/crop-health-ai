@@ -29,6 +29,28 @@ def get_my_alerts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    alerts = (
+        db.query(Alert)
+        .join(Field)
+        .join(Farm)
+        .filter(Farm.user_id == current_user.id)
+        .order_by(Alert.created_at.desc(), Alert.id.desc())
+        .all()
+    )
+
+    seen = set()
+    duplicates = []
+    for alert in alerts:
+        key = (alert.field_id, alert.type, alert.message)
+        if key in seen:
+            duplicates.append(alert)
+        else:
+            seen.add(key)
+
+    if duplicates:
+        for duplicate in duplicates:
+            db.delete(duplicate)
+        db.commit()
 
     alerts = (
         db.query(Alert)

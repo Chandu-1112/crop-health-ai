@@ -22,6 +22,7 @@ def get_my_profile(
         "name": current_user.name,
         "mobile": current_user.mobile,
         "language": current_user.language,
+        "role": current_user.role,
         "created_at": current_user.created_at
     }
 
@@ -44,7 +45,8 @@ def update_my_profile(
             "id": current_user.id,
             "name": current_user.name,
             "mobile": current_user.mobile,
-            "language": current_user.language
+            "language": current_user.language,
+            "role": current_user.role
         }
     }
 

@@ -110,5 +110,6 @@ def get_me(
         "id": current_user.id,
         "name": current_user.name,
         "mobile": current_user.mobile,
-        "language": current_user.language
+        "language": current_user.language,
+        "role": current_user.role,
     }

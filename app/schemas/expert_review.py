@@ -20,6 +20,9 @@ class ExpertReviewResponse(BaseModel):
     expert_diagnosis: Optional[str] = None
     expert_notes: Optional[str] = None
     created_at: Optional[datetime] = None
+    diagnosis: Optional[dict] = None
+    farmer_name: Optional[str] = None
+    crop: Optional[str] = None
 
     class Config:
         from_attributes = True

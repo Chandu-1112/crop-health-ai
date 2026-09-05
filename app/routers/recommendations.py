@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from typing import Any, Dict
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
@@ -21,7 +22,7 @@ router = APIRouter(
 )
 
 
-@router.get("/field/{field_id}")
+@router.get("/field/{field_id}", response_model=Dict[str, Any])
 def get_recommendations(
     field_id: int,
     current_user: User = Depends(get_current_user),
@@ -84,38 +85,37 @@ def get_recommendations(
         .first()
     )
 
+    # Recommendations must remain available even before weather is saved.
     if weather is None:
-        raise HTTPException(
-            status_code=404,
-            detail="No weather data found for this field"
+        severity = (diagnosis.severity or "unknown").lower()
+        fallback_level = "high" if severity in {"high", "severe"} else "medium"
+        risk = {"risk_level": fallback_level, "risk_score": 0}
+    else:
+        risk = calculate_risk(
+            disease=diagnosis.disease,
+            confidence=diagnosis.confidence or 0.0,
+            severity=diagnosis.severity or "unknown",
+            temperature=weather.temperature,
+            humidity=weather.humidity,
+            rainfall=weather.rainfall,
+            growth_stage=field.growth_stage
         )
-
-    # -----------------------------------------
-    # Calculate risk
-    # -----------------------------------------
-
-    risk = calculate_risk(
-        disease=diagnosis.disease,
-        confidence=diagnosis.confidence or 0.0,
-        severity=diagnosis.severity or "unknown",
-        temperature=weather.temperature,
-        humidity=weather.humidity,
-        rainfall=weather.rainfall,
-        growth_stage=field.growth_stage
-    )
 
     # -----------------------------------------
     # Create alert if required
     # -----------------------------------------
 
-    alert = create_risk_alert(
-        db=db,
-        field_id=field.id,
-        crop=field.crop,
-        disease=diagnosis.disease,
-        risk_score=risk["risk_score"],
-        risk_level=risk["risk_level"]
-    )
+    alert = None
+    if weather is not None:
+        alert = create_risk_alert(
+            db=db,
+            field_id=field.id,
+            crop=field.crop,
+            disease=diagnosis.disease,
+            risk_score=risk["risk_score"],
+            risk_level=risk["risk_level"],
+            language=current_user.language,
+        )
 
     # -----------------------------------------
     # Generate recommendations
@@ -125,7 +125,8 @@ def get_recommendations(
         disease=diagnosis.disease,
         severity=diagnosis.severity or "unknown",
         risk_level=risk["risk_level"],
-        crop=field.crop
+        crop=field.crop,
+        language=current_user.language,
     )
 
     # -----------------------------------------
