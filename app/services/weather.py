@@ -9,8 +9,8 @@ import time
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
 
 # Cache durations
-CURRENT_WEATHER_CACHE_SECONDS = 600       # 10 minutes
-FORECAST_CACHE_SECONDS = 1800             # 30 minutes
+CURRENT_WEATHER_CACHE_SECONDS = 1800      # 30 minutes
+FORECAST_CACHE_SECONDS = 21600            # 6 hours
 
 # In-memory cache
 _weather_cache: Dict[str, Dict[str, Any]] = {}
@@ -105,7 +105,8 @@ def _fetch_open_meteo(
 
 def get_weather(
     latitude: float,
-    longitude: float
+    longitude: float,
+    force_refresh: bool = False
 ):
     """
     Get current weather for a field location.
@@ -119,7 +120,7 @@ def get_weather(
     # Check cache
     cached = _weather_cache.get(key)
 
-    if cached:
+    if cached and not force_refresh:
         age = time.time() - cached["timestamp"]
 
         if age < CURRENT_WEATHER_CACHE_SECONDS:
@@ -138,7 +139,12 @@ def get_weather(
         "timezone": "auto"
     }
 
-    data = _fetch_open_meteo(params)
+    try:
+        data = _fetch_open_meteo(params)
+    except Exception as error:
+        if cached:
+            return cached["data"]
+        raise error
 
     current = data.get("current")
 
@@ -179,7 +185,8 @@ def get_weather(
 def get_weather_forecast(
     latitude: float,
     longitude: float,
-    days: int = 14
+    days: int = 14,
+    force_refresh: bool = False
 ):
     """
     Get daily weather forecast.
@@ -194,7 +201,7 @@ def get_weather_forecast(
     # Check cache
     cached = _forecast_cache.get(key)
 
-    if cached:
+    if cached and not force_refresh:
         age = time.time() - cached["timestamp"]
 
         if age < FORECAST_CACHE_SECONDS:
@@ -214,7 +221,14 @@ def get_weather_forecast(
         "timezone": "auto"
     }
 
-    data = _fetch_open_meteo(params)
+    try:
+        data = _fetch_open_meteo(params)
+    except Exception as error:
+        # Keep the last successful forecast usable during provider throttling.
+        # A stale forecast is safer than turning the dashboard into a 500.
+        if cached:
+            return cached["data"]
+        raise error
 
     daily = data.get("daily")
 
@@ -290,4 +304,3 @@ def get_weather_forecast(
     }
 
     return forecast
-

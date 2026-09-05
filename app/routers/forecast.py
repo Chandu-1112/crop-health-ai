@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.services.alert_service import create_forecast_alert
 from app.database.database import get_db
@@ -25,6 +25,7 @@ router = APIRouter(
 @router.get("/field/{field_id}")
 def get_field_forecast(
     field_id: int,
+    refresh: bool = Query(False),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -106,7 +107,8 @@ def get_field_forecast(
         weather_forecast = get_weather_forecast(
             latitude=field.farm.latitude,
             longitude=field.farm.longitude,
-            days=14
+            days=14,
+            force_refresh=refresh,
         )
 
     except Exception as e:
