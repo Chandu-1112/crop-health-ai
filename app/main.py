@@ -21,7 +21,6 @@ from app.models.diagnosis import Diagnosis
 from app.models.weather import WeatherData
 from app.models.treatment import Treatment
 from app.models.alert import Alert
-from app.models.expert_review import ExpertReview
 from app.models.monitoring import Monitoring
 
 
@@ -39,7 +38,6 @@ from app.routers.risk import router as risk_router
 from app.routers.recommendations import router as recommendations_router
 from app.routers.alerts import router as alerts_router
 from app.routers.treatments import router as treatments_router
-from app.routers.experts import router as experts_router
 from app.routers.dashboard import router as dashboard_router
 from app.routers.forecast import router as forecast_router
 from app.routers.monitoring import router as monitoring_router
@@ -84,7 +82,6 @@ app.include_router(risk_router)
 app.include_router(recommendations_router)
 app.include_router(alerts_router)
 app.include_router(treatments_router)
-app.include_router(experts_router)
 app.include_router(forecast_router)
 app.include_router(dashboard_router)
 app.include_router(monitoring_router)
@@ -119,4 +116,3 @@ def test_database(
         "database": "connected",
         "result": result.scalar()
     }
-

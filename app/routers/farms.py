@@ -10,7 +10,6 @@ from app.models.alert import Alert
 from app.models.diagnosis import Diagnosis
 from app.models.treatment import Treatment
 from app.models.monitoring import Monitoring
-from app.models.expert_review import ExpertReview
 from app.models.user import User
 from app.schemas.farm import FarmCreate, FarmResponse
 from app.core.dependencies import get_current_user
@@ -115,7 +114,6 @@ def delete_farm(
     ] if field_ids else []
 
     if diagnosis_ids:
-        db.query(ExpertReview).filter(ExpertReview.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
         db.query(Treatment).filter(Treatment.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
         db.query(Monitoring).filter(Monitoring.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
         db.query(Diagnosis).filter(Diagnosis.id.in_(diagnosis_ids)).delete(synchronize_session=False)

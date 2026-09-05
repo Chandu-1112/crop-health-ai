@@ -9,7 +9,6 @@ from app.models.weather import WeatherData
 from app.models.alert import Alert
 from app.models.treatment import Treatment
 from app.models.monitoring import Monitoring
-from app.models.expert_review import ExpertReview
 from app.models.farm import Farm
 from app.models.user import User
 from app.schemas.field import FieldCreate, FieldResponse
@@ -206,7 +205,6 @@ def delete_field(
         for diagnosis in db.query(Diagnosis.id).filter(Diagnosis.field_id == field_id).all()
     ]
     if diagnosis_ids:
-        db.query(ExpertReview).filter(ExpertReview.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
         db.query(Treatment).filter(Treatment.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
         db.query(Monitoring).filter(Monitoring.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
         db.query(Diagnosis).filter(Diagnosis.id.in_(diagnosis_ids)).delete(synchronize_session=False)
