@@ -151,3 +151,23 @@ def mark_alert_read(
         "message": "Alert marked as read",
         "alert_id": alert.id
     }
+
+
+@router.delete("/{alert_id}", status_code=204)
+def delete_alert(
+    alert_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    alert = (
+        db.query(Alert)
+        .join(Field)
+        .join(Farm)
+        .filter(Alert.id == alert_id, Farm.user_id == current_user.id)
+        .first()
+    )
+    if alert is None:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    db.delete(alert)
+    db.commit()
+    return None

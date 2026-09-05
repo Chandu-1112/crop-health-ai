@@ -4,6 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.database.database import get_db
 from app.models.field import Field
+from app.models.diagnosis import Diagnosis
+from app.models.weather import WeatherData
+from app.models.alert import Alert
+from app.models.treatment import Treatment
+from app.models.monitoring import Monitoring
+from app.models.expert_review import ExpertReview
 from app.models.farm import Farm
 from app.models.user import User
 from app.schemas.field import FieldCreate, FieldResponse
@@ -195,6 +201,17 @@ def delete_field(
             detail="Field not found"
         )
 
+    diagnosis_ids = [
+        diagnosis.id
+        for diagnosis in db.query(Diagnosis.id).filter(Diagnosis.field_id == field_id).all()
+    ]
+    if diagnosis_ids:
+        db.query(ExpertReview).filter(ExpertReview.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
+        db.query(Treatment).filter(Treatment.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
+        db.query(Monitoring).filter(Monitoring.diagnosis_id.in_(diagnosis_ids)).delete(synchronize_session=False)
+        db.query(Diagnosis).filter(Diagnosis.id.in_(diagnosis_ids)).delete(synchronize_session=False)
+    db.query(WeatherData).filter(WeatherData.field_id == field_id).delete(synchronize_session=False)
+    db.query(Alert).filter(Alert.field_id == field_id).delete(synchronize_session=False)
     db.delete(field)
     db.commit()
 
