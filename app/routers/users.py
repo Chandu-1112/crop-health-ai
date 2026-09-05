@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.database.database import get_db
@@ -74,8 +76,105 @@ def delete_user(
             detail="User not found"
         )
 
-    db.delete(user)
-    db.commit()
+    try:
+        # Remove dependent records first because the existing database schema
+        # does not declare cascading foreign keys.
+        db.execute(
+            text(
+                """
+                DELETE FROM monitoring
+                WHERE diagnosis_id IN (
+                    SELECT d.id
+                    FROM diagnoses d
+                    JOIN fields f ON f.id = d.field_id
+                    JOIN farms fa ON fa.id = f.farm_id
+                    WHERE fa.user_id = :user_id
+                )
+                """
+            ),
+            {"user_id": user_id},
+        )
+        db.execute(
+            text(
+                """
+                DELETE FROM treatments
+                WHERE diagnosis_id IN (
+                    SELECT d.id
+                    FROM diagnoses d
+                    JOIN fields f ON f.id = d.field_id
+                    JOIN farms fa ON fa.id = f.farm_id
+                    WHERE fa.user_id = :user_id
+                )
+                """
+            ),
+            {"user_id": user_id},
+        )
+        db.execute(
+            text(
+                """
+                DELETE FROM diagnoses
+                WHERE field_id IN (
+                    SELECT f.id
+                    FROM fields f
+                    JOIN farms fa ON fa.id = f.farm_id
+                    WHERE fa.user_id = :user_id
+                )
+                """
+            ),
+            {"user_id": user_id},
+        )
+        db.execute(
+            text(
+                """
+                DELETE FROM weather_data
+                WHERE field_id IN (
+                    SELECT f.id
+                    FROM fields f
+                    JOIN farms fa ON fa.id = f.farm_id
+                    WHERE fa.user_id = :user_id
+                )
+                """
+            ),
+            {"user_id": user_id},
+        )
+        db.execute(
+            text(
+                """
+                DELETE FROM alerts
+                WHERE field_id IN (
+                    SELECT f.id
+                    FROM fields f
+                    JOIN farms fa ON fa.id = f.farm_id
+                    WHERE fa.user_id = :user_id
+                )
+                """
+            ),
+            {"user_id": user_id},
+        )
+        db.execute(
+            text(
+                """
+                DELETE FROM fields
+                WHERE farm_id IN (
+                    SELECT id FROM farms WHERE user_id = :user_id
+                )
+                """
+            ),
+            {"user_id": user_id},
+        )
+        db.execute(
+            text("DELETE FROM farms WHERE user_id = :user_id"),
+            {"user_id": user_id},
+        )
+        db.delete(user)
+        db.commit()
+    except SQLAlchemyError as error:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Unable to delete user and related records",
+        ) from error
+
     return None
 
 
