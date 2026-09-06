@@ -82,6 +82,12 @@ def get_field_weather(
             "cached": True,
         }
 
+    if not refresh:
+        raise HTTPException(
+            status_code=409,
+            detail="Weather refresh is manual. Tap the refresh button to update.",
+        )
+
     try:
         weather = get_weather(
             field.farm.latitude,

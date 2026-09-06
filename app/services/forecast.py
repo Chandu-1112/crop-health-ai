@@ -54,7 +54,7 @@ def calculate_forecast_risk(
 ):
     """
     Calculate crop-health risk for each
-    forecast day and summarize 3, 7 and 14 days.
+    forecast day and summarize 3, 5 and 7 days.
     """
 
     daily_forecast = []
@@ -96,13 +96,13 @@ def calculate_forecast_risk(
             daily_forecast,
             3
         ),
+        "5_day": get_period_summary(
+            daily_forecast,
+            5
+        ),
         "7_day": get_period_summary(
             daily_forecast,
             7
-        ),
-        "14_day": get_period_summary(
-            daily_forecast,
-            14
         ),
         "daily": daily_forecast
     }
